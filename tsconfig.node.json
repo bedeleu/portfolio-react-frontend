@@ -1,10 +1,10 @@
 {
   "compilerOptions": {
-    "target": "ES2022",
-    "lib": ["ES2023"],
-    "module": "ESNext",
+    "composite": true,     // Adăugat pentru a rezolva prima eroare
     "skipLibCheck": true,
-
+    "module": "ESNext",
+    "allowSyntheticDefaultImports": true,
+    
     /* Bundler mode */
     "moduleResolution": "Bundler",
     "allowImportingTsExtensions": true,

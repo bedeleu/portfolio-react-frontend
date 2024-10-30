@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Plus, Grid, List } from 'lucide-react';
-import { useWorks, Work, CreateWorkDTO } from './hooks/useWorks';
-import { WorkCard } from './components/work-card';
+import { useWorks, Work, CreateWorkDTO } from '@/hooks/useWorks';
+import { WorkCard } from '@/components/work-card';
+import { uploadService } from '@/services/api';
 
 export default function App() {
   const { works, loading, createWork, updateWork, deleteWork } = useWorks();
@@ -9,7 +10,7 @@ export default function App() {
   const [selectedWork, setSelectedWork] = useState<Work | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-
+  const [isUploading, setIsUploading] = useState(false);
   const handleSubmit = async (formData: CreateWorkDTO) => {
     try {
       if (selectedWork) {
@@ -21,6 +22,18 @@ export default function App() {
       setSelectedWork(null);
     } catch (error) {
       console.error('Failed to save work:', error);
+    }
+  };
+  const handleImageUpload = async (file: File): Promise<string> => {
+    setIsUploading(true);
+    try {
+      const imageUrl = await uploadService.uploadImage(file);
+      return imageUrl;
+    } catch (error) {
+      console.error('Failed to upload image:', error);
+      throw error;
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -91,13 +104,13 @@ export default function App() {
           </div>
         </div>
 
-        {/* Projects Display */}
         {viewMode === 'grid' ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {works.map((work) => (
               <WorkCard
                 key={work.id}
                 work={work}
+                viewMode="grid"
                 onToggleVisibility={async (id) => {
                   const work = works.find(w => w.id === id);
                   if (work) {
@@ -105,86 +118,30 @@ export default function App() {
                   }
                 }}
                 onEdit={handleEdit}
-                onDelete={async (id) => {
-                  if (window.confirm('Are you sure you want to delete this project?')) {
-                    await deleteWork(id);
-                  }
-                }}
+                onDelete={deleteWork}
               />
             ))}
           </div>
         ) : (
           <div className="space-y-4">
             {works.map((work) => (
-              <div
+              <WorkCard
                 key={work.id}
-                className={`bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow
-                   ${!work.isVisible ? 'opacity-50' : ''}`}
-              >
-                <div className="flex flex-row p-3 gap-3 items-center">
-                  {/* Imagine: Fix 20% */}
-                  <div className="w-1/5 flex-shrink-0 max-w-[120px]">
-                    <img
-                      src={work.imageUrl}
-                      alt={work.title}
-                      className="w-full h-20 object-cover rounded-md"
-                    />
-                  </div>
-
-                  {/* Conținut: Flex grow pentru a ocupa spațiul rămas */}
-                  <div className="flex-grow min-w-0 pr-3">
-                    <h3 className="text-lg font-semibold text-gray-900 truncate">
-                      {work.title}
-                    </h3>
-                    <p className="text-sm text-gray-600 line-clamp-2 mt-1">
-                      {work.description}
-                    </p>
-                    <a
-                      href={work.clientUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 hover:text-blue-800 text-sm mt-2 inline-block"
-                    >
-                      Vezi site-ul clientului
-                    </a>
-                  </div>
-
-                  {/* Butoane: Lățime fixă mai mică */}
-                  <div className="flex-shrink-0 w-[90px] flex flex-col gap-1">
-                    <button
-                      onClick={() => handleEdit(work)}
-                      className="w-full px-2 py-1 text-xs font-medium text-gray-600 hover:text-gray-900
-                       transition-colors border border-gray-300 rounded-md
-                       hover:bg-gray-50"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={async () => {
-                        if (window.confirm('Are you sure you want to delete this project?')) {
-                          await deleteWork(work.id);
-                        }
-                      }}
-                      className="w-full px-2 py-1 text-xs font-medium text-red-600 hover:text-red-800
-                       transition-colors border border-red-200 rounded-md
-                       hover:bg-red-50"
-                    >
-                      Delete
-                    </button>
-                    <button
-                      onClick={() => updateWork(work.id, { isVisible: !work.isVisible })}
-                      className="w-full px-2 py-1 text-xs font-medium text-gray-600 hover:text-gray-900
-                       transition-colors border border-gray-300 rounded-md
-                       hover:bg-gray-50"
-                    >
-                      {work.isVisible ? 'Hide' : 'Show'}
-                    </button>
-                  </div>
-                </div>
-              </div>
+                work={work}
+                viewMode="list"
+                onToggleVisibility={async (id) => {
+                  const work = works.find(w => w.id === id);
+                  if (work) {
+                    await updateWork(id, { isVisible: !work.isVisible });
+                  }
+                }}
+                onEdit={handleEdit}
+                onDelete={deleteWork}
+              />
             ))}
           </div>
         )}
+
         {/*/!* Projects Display *!/*/}
         {/*{viewMode === 'grid' ? (*/}
         {/*  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">*/}
@@ -293,17 +250,7 @@ export default function App() {
                   let imageUrl = formData.get('imageUrl') as string;
 
                   if (imageFile) {
-                    const formData = new FormData();
-                    formData.append('image', imageFile);
-
-                    const response = await fetch('http://localhost:3000/works/upload', {
-                      method: 'POST',
-                      body: formData,
-                    });
-
-                    if (!response.ok) throw new Error('Failed to upload image');
-                    const data = await response.json();
-                    imageUrl = `http://localhost:3000${data.url}`;
+                    imageUrl = await handleImageUpload(imageFile);
                   }
 
                   await handleSubmit({
@@ -457,9 +404,11 @@ export default function App() {
                   </button>
                   <button
                     type="submit"
-                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                    disabled={isUploading}
+                    className={`px-4 py-2 bg-blue-600 text-white rounded-md transition-colors
+              ${isUploading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-700'}`}
                   >
-                    {selectedWork ? 'Save Changes' : 'Create Project'}
+                    {isUploading ? 'Uploading...' : selectedWork ? 'Save Changes' : 'Create Project'}
                   </button>
                 </div>
               </form>
